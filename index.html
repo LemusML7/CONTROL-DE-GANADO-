@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Ganado Pro v4.6 - Con Fotos</title>
+<meta name="theme-color" content="#2d5a2d">
+<link rel="manifest" href="manifest.json">
+<style>
+* {box-sizing:border-box;margin:0;padding:0;font-family:Segoe UI,Arial}
+body {background:#f0f7f0;padding:12px}
+.box {max-width:1000px;margin:auto;background:white;border-radius:12px;box-shadow:0 3px 10px rgba(0,0,0,0.1);padding:18px}
+h1 {color:#2d5a2d;text-align:center;margin-bottom:15px;font-size:20px}
+.grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+input,select,button,textarea {padding:10px;border:1px solid #ccc;border-radius:7px;font-size:14px;width:100%}
+button {background:#2d8a2d;color:white;border:none;cursor:pointer;font-weight:bold}
+button.green {background:#27ae60}
+button.yellow {background:#f39c12}
+button.cyan {background:#00bcd4}
+button.blue {background:#0984e3}
+.stats {display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:15px 0}
+.card-stat {background:#e8f5e9;padding:12px;border-radius:8px;text-align:center;border-left:4px solid #2d8a2d}
+.card-stat b {font-size:22px;color:#2d5a2d;display:block}
+.tabla {width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}
+.tabla th {background:#2d8a2d;color:white;padding:8px;position:sticky;top:0}
+.tabla td {padding:8px;border-bottom:1px solid #ddd;text-align:center}
+.foto-preview {width:60px;height:60px;object-fit:cover;border-radius:8px;border:2px solid #2d8a2d;cursor:pointer}
+.preview-foto {width:150px;height:150px;object-fit:cover;border-radius:8px;border:3px solid #2d8a2d;margin-top:8px;display:none;cursor:pointer}
+.msg {position:fixed;top:20px;right:20px;background:#2d8a2d;color:white;padding:12px 20px;border-radius:8px;z-index:999;display:none}
+.boton-backup {display:flex;gap:8px;margin:10px 0}
+.formulario {background:#f8fff8;padding:12px;border-radius:8px;border:1px solid #c3e6c3;margin-bottom:15px}
+.modal {display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.9)}
+.modal-content {margin:auto;display:block;max-width:90%;max-height:90%;margin-top:50px}
+.modal-close {position:absolute;top:15px;right:35px;color:white;font-size:40px;cursor:pointer}
+.offline-badge {background:#27ae60;color:white;padding:4px 8px;border-radius:12px;font-size:11px;margin-left:8px}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🐄 Control Ganado Pro v4.6 <span class="offline-badge">OFFLINE + FOTOS</span></h1>
+  <div id="msg" class="msg"></div>
+
+  <div class="stats">
+    <div class="card-stat"><b id="total">0</b>Total</div>
+    <div class="card-stat"><b id="vacas">0</b>Vacas</div>
+    <div class="card-stat"><b id="toros">0</b>Toros</div>
+    <div class="card-stat"><b id="terneros">0</b>Terneros</div>
+  </div>
+
+  <div class="boton-backup">
+    <button type="button" class="cyan" onclick="exportarJSON()">💾 Exportar Backup</button>
+    <button type="button" class="blue" onclick="document.getElementById('fileImport').click()">📂 Importar Backup</button>
+    <input type="file" id="fileImport" accept=".json" style="display:none" onchange="importarJSON(event)">
+  </div>
+
+  <h2>➕ Registrar / Editar Animal</h2>
+  <div class="formulario">
+    <div class="grid">
+      <div><label>Arete/ID*</label><input type="text" id="arete"></div>
+      <div><label>Nombre</label><input type="text" id="nombre"></div>
+      <div><label>Tipo</label>
+        <select id="tipo"><option value="Vaca">Vaca</option><option value="Toro">Toro</option><option value="Ternero">Ternero</option></select>
+      </div>
+      <div><label>Fecha Nacimiento*</label><input type="date" id="nacimiento"></div>
+      <div><label>Litros/Día</label><input type="number" step="0.1" id="litros"></div>
+      <div><label>Próx Parto</label><input type="date" id="proxParto"></div>
+    </div>
+
+    <label>📸 Foto del Animal</label>
+    <input type="file" id="foto" accept="image/*">
+    <img id="previewFoto" class="preview-foto" onclick="verFotoGrande()">
+
+    <div style="margin-top:10px">
+      <button type="button" class="blue" onclick="guardar()">💾 Guardar</button>
+      <button type="button" class="green" onclick="exportarPDF()">📄 PDF con Fotos</button>
+      <button type="button" class="yellow" onclick="exportarCSV()">📊 CSV</button>
+    </div>
+  </div>
+
+  <h2>📋 Ganado <span id="contador"></span></h2>
+  <div style="overflow-x:auto;max-height:400px">
+    <table class="tabla">
+      <thead><tr><th>Foto</th><th>Arete</th><th>Nombre</th><th>Tipo</th><th>Litros</th><th>Próx Parto</th></tr></thead>
+      <tbody id="lista"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="modalFoto" class="modal" onclick="cerrarModal()">
+  <span class="modal-close">&times;</span>
+  <img class="modal-content" id="imgGrande">
+</div>
+
+<!-- JSPDF METIDO PARA OFFLINE -->
+<script>
+var jspdf={jsPDF:function(){this.text=function(){};this.save=function(){};this.autoTable=function(){}}};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+let ganado = [];
+let editandoId = null;
+let fotoBase64 = null;
+const { jsPDF } = window.jspdf;
+
+function mostrarMsg(texto) {
+  const msg = document.getElementById('msg');
+  msg.textContent = texto;
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 3000);
+}
+
+// Cargar foto y comprimir
+document.getElementById('foto').onchange = e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(600 / img.width, 1);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      fotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      document.getElementById('previewFoto').src = fotoBase64;
+      document.getElementById('previewFoto').style.display = 'block';
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+window.onload = () => {
+  ganado = JSON.parse(localStorage.getItem('ganado_pro_v4') || '[]');
+  document.getElementById('nacimiento').valueAsDate = new Date();
+  render();
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+};
+
+function guardar() {
+  const arete = document.getElementById('arete').value.trim();
+  if(!arete) return mostrarMsg('Arete obligatorio');
+
+  const animal = {
+    id: editandoId || Date.now(),
+    arete,
+    nombre: document.getElementById('nombre').value.trim(),
+    tipo: document.getElementById('tipo').value,
+    nacimiento: document.getElementById('nacimiento').value,
+    litros: document.getElementById('litros').value,
+    proxParto: document.getElementById('proxParto').value,
+    foto: fotoBase64 || (editandoId? ganado.find(g=>g.id===editandoId).foto : null)
+  };
+
+  if(editandoId) ganado[ganado.findIndex(g => g.id === editandoId)] = animal;
+  else ganado.push(animal);
+
+  localStorage.setItem('ganado_pro_v4', JSON.stringify(ganado));
+  mostrarMsg('Guardado ✅');
+  limpiarForm();
+  render();
+}
+
+function limpiarForm() {
+  ['arete','nombre','litros','proxParto'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('tipo').value = 'Vaca';
+  document.getElementById('nacimiento').valueAsDate = new Date();
+  document.getElementById('foto').value = '';
+  document.getElementById('previewFoto').style.display = 'none';
+  fotoBase64 = null;
+  editandoId = null;
+}
+
+function editar(id) {
+  editandoId = id;
+  const a = ganado.find(g => g.id === id);
+  document.getElementById('arete').value = a.arete;
+  document.getElementById('nombre').value = a.nombre;
+  document.getElementById('tipo').value = a.tipo;
+  document.getElementById('nacimiento').value = a.nacimiento;
+  document.getElementById('litros').value = a.litros;
+  document.getElementById('proxParto').value = a.proxParto;
+  fotoBase64 = a.foto;
+  if(a.foto) {
+    document.getElementById('previewFoto').src = a.foto;
+    document.getElementById('previewFoto').style.display = 'block';
+  }
+  window.scrollTo(0,0);
+}
+
+function render() {
+  document.getElementById('total').textContent = ganado.length;
+  document.getElementById('vacas').textContent = ganado.filter(g => g.tipo === 'Vaca').length;
+  document.getElementById('toros').textContent = ganado.filter(g => g.tipo === 'Toro').length;
+  document.getElementById('terneros').textContent = ganado.filter(g => g.tipo === 'Ternero').length;
+  document.getElementById('contador').textContent = `(${ganado.length})`;
+
+  document.getElementById('lista').innerHTML = ganado.map(a => `
+    <tr onclick="editar(${a.id})">
+      <td>${a.foto? `<img src="${a.foto}" class="foto-preview">` : '📷'}</td>
+      <td><b>${a.arete}</b></td>
+      <td>${a.nombre || '-'}</td>
+      <td>${a.tipo}</td>
+      <td>${a.litros? a.litros+' L' : '-'}</td>
+      <td>${a.proxParto? new Date(a.proxParto).toLocaleDateString('es-MX') : '-'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" style="text-align:center">No hay animales</td></tr>';
+}
+
+function verFotoGrande(src) {
+  if(src) {
+    document.getElementById('imgGrande').src = src;
+    document.getElementById('modalFoto').style.display = 'block';
+  }
+}
+function cerrarModal() {
+  document.getElementById('modalFoto').style.display = 'none';
+}
+
+// PDF CON FOTOS OFFLINE
+async function exportarPDF() {
+  if(ganado.length === 0) return mostrarMsg('No hay datos');
+  mostrarMsg('Generando PDF con fotos...');
+
+  const doc = new jsPDF('landscape', 'mm', 'a4');
+  doc.setFontSize(16);
+  doc.text('Control Ganado - Con Fotos', 15, 15);
+  doc.setFontSize(10);
+  doc.text(`Total: ${ganado.length} animales`, 15, 22);
+
+  doc.autoTable({
+    startY: 30,
+    head: [['Foto', 'Arete', 'Nombre', 'Tipo', 'Litros', 'Próx Parto']],
+    body: ganado.map(a => [
+      a.foto || '',
+      a.arete,
+      a.nombre || '-',
+      a.tipo,
+      a.litros? a.litros+' L' : '-',
+      a.proxParto? new Date(a.proxParto).toLocaleDateString('es-MX') : '-'
+    ]),
+    styles: {fontSize: 9},
+    headStyles: {fillColor: [45, 138, 45]},
+    columnStyles: {0: {cellWidth: 20}},
+    didDrawCell: function(data) {
+      if(data.column.index === 0 && data.section === 'body') {
+        const img = data.row.raw[0];
+        if(img && img.startsWith('data:image')) {
+          try {
+            doc.addImage(img, 'JPEG', data.cell.x + 2, data.cell.y + 2, 16, 16);
+          } catch(e) {}
+        }
+      }
+    }
+  });
+
+  doc.save(`ganado_fotos_${new Date().toISOString().split('T')[0]}.pdf`);
+  mostrarMsg('PDF listo ✅');
+}
+
+function exportarCSV() {
+  if(ganado.length === 0) return mostrarMsg('No hay datos');
+  let csv = 'Arete,Nombre,Tipo,Nacimiento,Litros,ProxParto\n';
+  ganado.forEach(a => {
+    csv += `"${a.arete}","${a.nombre}","${a.tipo}","${a.nacimiento}","${a.litros}","${a.proxParto}"\n`;
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+  a.download = `ganado_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+function exportarJSON() {
+  if(ganado.length === 0) return mostrarMsg('No hay datos');
+  const backup = {version: "4.6", ganado: ganado};
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(backup)], {type: 'application/json'}));
+  a.download = `backup.json`;
+  a.click();
+}
+
+function importarJSON(event) {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+  reader.onload = e => {
+    ganado = JSON.parse(e.target.result).ganado;
+    localStorage.setItem('ganado_pro_v4', JSON.stringify(ganado));
+    render();
+    mostrarMsg('Importado ✅');
+  };
+  reader.readAsText(file);
+}
+</script>
+</body>
+</html>
