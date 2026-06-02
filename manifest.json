@@ -1,0 +1,15 @@
+{
+  "name": "Control Ganado Pro",
+  "short_name": "GanadoPro", 
+  "description": "Control de ganado offline",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f0f7f0",
+  "theme_color": "#2d5a2d",
+  "orientation": "portrait",
+  "icons": [{
+    "src": "icon.png",
+    "sizes": "512x512",
+    "type": "image/png"
+  }]
+}

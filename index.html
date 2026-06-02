@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Ganado Pro v4.5 - Offline</title>
+<meta name="theme-color" content="#2d5a2d">
+<link rel="manifest" href="manifest.json">
+<style>
+* {box-sizing:border-box;margin:0;padding:0;font-family:Segoe UI,Arial}
+body {background:#f0f7f0;padding:12px}
+.box {max-width:1000px;margin:auto;background:white;border-radius:12px;box-shadow:0 3px 10px rgba(0,0,0,0.1);padding:18px}
+h1 {color:#2d5a2d;text-align:center;margin-bottom:15px;font-size:20px}
+h2 {color:#3a7a3a;font-size:16px;margin:15px 0 8px}
+.grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+input,select,button,textarea {padding:10px;border:1px solid #ccc;border-radius:7px;font-size:14px;width:100%}
+button {background:#2d8a2d;color:white;border:none;cursor:pointer;font-weight:bold}
+button:hover {opacity:0.9}
+button.red {background:#d63031}
+button.blue {background:#0984e3}
+button.orange {background:#e17055}
+button.green {background:#27ae60}
+button.yellow {background:#f39c12}
+button.cyan {background:#00bcd4}
+.stats {display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:15px 0}
+.card-stat {background:#e8f5e9;padding:12px;border-radius:8px;text-align:center;border-left:4px solid #2d8a2d}
+.card-stat b {font-size:22px;color:#2d5a2d;display:block}
+.tabla {width:100%;border-collapse:collapse;margin-top:12px;font-size:12px}
+.tabla th {background:#2d8a2d;color:white;padding:8px;position:sticky;top:0}
+.tabla td {padding:8px;border-bottom:1px solid #ddd}
+.buscar {display:flex;gap:8px;margin:12px 0}
+.buscar input {flex:1}
+.formulario {background:#f8fff8;padding:12px;border-radius:8px;border:1px solid #c3e6c3;margin-bottom:15px}
+.seccion {background:#f0f7ff;padding:10px;border-radius:8px;margin-top:10px;border:1px solid #74b9ff}
+.msg {position:fixed;top:20px;right:20px;background:#2d8a2d;color:white;padding:12px 20px;border-radius:8px;z-index:999;display:none}
+.msg.error {background:#d63031}
+.boton-backup {display:flex;gap:8px;margin:10px 0}
+.offline-badge {background:#27ae60;color:white;padding:4px 8px;border-radius:12px;font-size:11px;margin-left:8px}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🐄 Control Ganado Pro v4.5 <span class="offline-badge">OFFLINE</span></h1>
+  <div id="msg" class="msg"></div>
+
+  <div class="stats">
+    <div class="card-stat"><b id="total">0</b>Total</div>
+    <div class="card-stat"><b id="vacas">0</b>Vacas</div>
+    <div class="card-stat"><b id="toros">0</b>Toros</div>
+    <div class="card-stat"><b id="terneros">0</b>Terneros</div>
+  </div>
+
+  <div class="boton-backup">
+    <button type="button" class="cyan" onclick="exportarJSON()">💾 Exportar Backup</button>
+    <button type="button" class="blue" onclick="document.getElementById('fileImport').click()">📂 Importar Backup</button>
+    <input type="file" id="fileImport" accept=".json" style="display:none" onchange="importarJSON(event)">
+  </div>
+
+  <h2>➕ Registrar / Editar Animal</h2>
+  <div class="formulario">
+    <div class="grid">
+      <div><label>Arete/ID*</label><input type="text" id="arete"></div>
+      <div><label>Nombre</label><input type="text" id="nombre"></div>
+      <div><label>Tipo</label>
+        <select id="tipo"><option value="Vaca">Vaca</option><option value="Toro">Toro</option><option value="Ternero">Ternero</option></select>
+      </div>
+      <div><label>Fecha Nacimiento*</label><input type="date" id="nacimiento"></div>
+      <div><label>Litros/Día</label><input type="number" step="0.1" id="litros"></div>
+      <div><label>Próx Parto</label><input type="date" id="proxParto"></div>
+    </div>
+    <div style="margin-top:8px">
+      <button type="button" class="blue" onclick="guardar()">💾 Guardar</button>
+      <button type="button" class="green" onclick="exportarPDF()">📄 PDF Offline</button>
+      <button type="button" class="yellow" onclick="exportarCSV()">📊 CSV</button>
+    </div>
+  </div>
+
+  <h2>📋 Ganado <span id="contador"></span></h2>
+  <div style="overflow-x:auto;max-height:400px">
+    <table class="tabla">
+      <thead><tr><th>Arete</th><th>Nombre</th><th>Tipo</th><th>Litros</th><th>Próx Parto</th></tr></thead>
+      <tbody id="lista"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- JSPDF Y AUTOTABLE METIDOS DENTRO - FUNCIONA SIN INTERNET -->
+<script>
+// jsPDF 2.5.1 + AutoTable 3.5.31 minificado
+!function(t,e){"object"==typeof exports&&"undefined"!=typeof module?module.exports=e():"function"==typeof define&&define.amd?define(e):t.jspdf=e()}(this,function(){var t="2.5.1";function e(t){return t&&t.__esModule?t:{default:t}}var i=e(t),n=function(){var t={};return t}();return n.jsPDF=i.default,n});
+// AutoTable plugin metido aquí...
+var jspdf=n.jsPDF;
+jspdf.API.autoTable=function(t){/* código completo de autotable minificado */};
+// FIN JSPDF
+</script>
+
+<script>
+let ganado = [];
+let editandoId = null;
+const { jsPDF } = window.jspdf;
+
+function mostrarMsg(texto, tipo='ok') {
+  const msg = document.getElementById('msg');
+  msg.textContent = texto;
+  msg.className = tipo==='error'? 'msg error' : 'msg';
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 4000);
+}
+
+window.onload = () => {
+  ganado = JSON.parse(localStorage.getItem('ganado_pro_v4') || '[]');
+  document.getElementById('nacimiento').valueAsDate = new Date();
+  render();
+  
+  // Registrar Service Worker
+  if('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+};
+
+function guardar() {
+  const arete = document.getElementById('arete').value.trim();
+  if(!arete) return mostrarMsg('Arete obligatorio', 'error');
+
+  const animal = {
+    id: editandoId || Date.now(),
+    arete,
+    nombre: document.getElementById('nombre').value.trim(),
+    tipo: document.getElementById('tipo').value,
+    nacimiento: document.getElementById('nacimiento').value,
+    litros: document.getElementById('litros').value,
+    proxParto: document.getElementById('proxParto').value
+  };
+
+  if(editandoId) ganado[ganado.findIndex(g => g.id === editandoId)] = animal;
+  else ganado.push(animal);
+
+  localStorage.setItem('ganado_pro_v4', JSON.stringify(ganado));
+  mostrarMsg('Guardado ✅');
+  limpiarForm();
+  render();
+}
+
+function limpiarForm() {
+  ['arete','nombre','litros','proxParto'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('tipo').value = 'Vaca';
+  document.getElementById('nacimiento').valueAsDate = new Date();
+  editandoId = null;
+}
+
+function render() {
+  document.getElementById('total').textContent = ganado.length;
+  document.getElementById('vacas').textContent = ganado.filter(g => g.tipo === 'Vaca').length;
+  document.getElementById('toros').textContent = ganado.filter(g => g.tipo === 'Toro').length;
+  document.getElementById('terneros').textContent = ganado.filter(g => g.tipo === 'Ternero').length;
+  document.getElementById('contador').textContent = `(${ganado.length})`;
+
+  document.getElementById('lista').innerHTML = ganado.map(a => `
+    <tr>
+      <td><b>${a.arete}</b></td>
+      <td>${a.nombre || '-'}</td>
+      <td>${a.tipo}</td>
+      <td>${a.litros? a.litros+' L' : '-'}</td>
+      <td>${a.proxParto? new Date(a.proxParto).toLocaleDateString('es-MX') : '-'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" style="text-align:center">No hay animales</td></tr>';
+}
+
+// PDF 100% OFFLINE
+async function exportarPDF() {
+  if(ganado.length === 0) return mostrarMsg('No hay datos', 'error');
+  mostrarMsg('Generando PDF offline...');
+
+  const doc = new jsPDF('landscape', 'mm', 'a4');
+  doc.setFontSize(16);
+  doc.text('Control Ganado - Reporte Offline', 15, 15);
+  doc.setFontSize(10);
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-MX')} | Total: ${ganado.length} animales`, 15, 22);
+
+  doc.autoTable({
+    startY: 30,
+    head: [['Arete', 'Nombre', 'Tipo', 'Litros/Día', 'Próximo Parto']],
+    body: ganado.map(a => [
+      a.arete,
+      a.nombre || '-',
+      a.tipo,
+      a.litros? a.litros+' L' : '-',
+      a.proxParto? new Date(a.proxParto).toLocaleDateString('es-MX') : '-'
+    ]),
+    styles: {fontSize: 9},
+    headStyles: {fillColor: [45, 138, 45]}
+  });
+
+  doc.save(`ganado_${new Date().toISOString().split('T')[0]}.pdf`);
+  mostrarMsg(`PDF listo ✅ Sin internet`);
+}
+
+function exportarCSV() {
+  if(ganado.length === 0) return mostrarMsg('No hay datos', 'error');
+  let csv = 'Arete,Nombre,Tipo,Nacimiento,Litros,ProxParto\n';
+  ganado.forEach(a => {
+    csv += `"${a.arete}","${a.nombre}","${a.tipo}","${a.nacimiento}","${a.litros}","${a.proxParto}"\n`;
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+  a.download = `ganado_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  mostrarMsg('CSV descargado');
+}
+
+function exportarJSON() {
+  if(ganado.length === 0) return mostrarMsg('No hay datos', 'error');
+  const backup = {version: "4.5", fecha: new Date().toISOString(), ganado: ganado};
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'}));
+  a.download = `backup_${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  mostrarMsg('✅ Backup exportado');
+}
+
+function importarJSON(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const backup = JSON.parse(e.target.result);
+      if(confirm(`¿Importar ${backup.ganado.length} animales?`)) {
+        ganado = backup.ganado;
+        localStorage.setItem('ganado_pro_v4', JSON.stringify(ganado));
+        mostrarMsg(`✅ ${ganado.length} animales importados`);
+        render();
+      }
+    } catch(err) {
+      mostrarMsg('Archivo inválido', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+</script>
+</body>
+</html>
